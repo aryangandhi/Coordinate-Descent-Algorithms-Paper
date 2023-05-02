@@ -1,0 +1,195 @@
+---
+title: "STA315 Project Simulation"
+author: "Aryan Gandhi"
+date: "2023-04-17"
+output: pdf_document
+---
+```{r}
+set.seed(1005230787)
+```
+
+
+```{r}
+if (!requireNamespace("MASS", quietly = TRUE)) {
+  install.packages("MASS")
+}
+
+if (!requireNamespace("extraDistr", quietly = TRUE)) {
+  install.packages("extraDistr")
+}
+
+if (!requireNamespace("glmnet", quietly = TRUE)) {
+  install.packages("glmnet")
+}
+
+library(MASS)
+library(extraDistr)
+library(glmnet)
+```
+
+
+```{r}
+generate_correlated_predictors <- function(n, p, corr) {
+  Sigma <- diag(p)
+  for (j in 1:10) {
+    for (k in 1:10) {
+      if (j != k && j <= 10 && k <= 10) {
+        Sigma[j, k] <- corr
+      }
+    }
+  }
+  X <- mvrnorm(n, mu = rep(0, p), Sigma = Sigma)
+  
+  return(X)
+}
+
+
+```
+
+
+```{r}
+generate_data <- function(n, p, corr, mu, beta_true, distribution){
+  # print("Generating data")
+  
+  # Generate data
+  X <- generate_correlated_predictors(n, p, corr)
+  
+  # print("Created Xi's")
+  
+  if(distribution == "Normal"){
+    y <- (mu + X %*% beta_true + rnorm(n))
+  }
+  else if(distribution == "Laplace"){
+    y <- (mu + X %*% beta_true + rlaplace(n))
+  }
+  
+  data <- list(y = as.numeric(y), X = as.matrix(X))
+  
+  return(data)
+}
+
+```
+
+
+```{r}
+calculate_test_error <- function(n, p, corr, mu, beta_true, distribution, fit) {
+  # print("calculating test error")
+  data <- generate_data(n, p, corr, mu, beta_true, distribution)
+  X_test <- data$X
+  y_test <- data$y
+  
+  y_true <- mu + X_test %*% beta_true
+  y_pred <- predict(fit, X_test)
+  
+  true_errors <- mean((y_test - y_true)^2)
+  pred_errors <- mean((y_test - y_pred)^2)
+  
+  data <- list(true_errors = as.numeric(true_errors), pred_errors = as.numeric(pred_errors))
+  
+  return(data)
+}
+```
+
+
+
+```{r}
+
+results <- data.frame(Distribution = character(),
+                        p = integer(),
+                        n = integer(),
+                        corr = numeric(),
+                        True_Error = numeric(),
+                        Lambda_Error = numeric(),
+                        Pred_Error = numeric(),
+                        N_nonzero = numeric(),
+                        N_true = integer(),
+                        Time = numeric())
+
+run_simulation <- function() {
+  
+  n_replicates <- 50
+  p = 500
+  n = 20
+  corr_values = c(0, 0.8)
+  
+  distributions <- c("Laplace", "Normal")
+  mu <- 0
+  beta_true <- c(rep(1, 5), rep(0, p - 5))
+  
+  N_true <- sum(beta_true != 0)
+  
+  for (distribution in distributions) {
+      for (corr in corr_values) {
+          
+          N_nonzero = c()
+          true_errors = c()
+          pred_errors <- c()
+          lambdas <- c()
+          runtimes <- c()
+          
+          for (repl in 1:n_replicates) {
+            
+            # Generate the data
+            data <- generate_data(n, p, corr, mu, beta_true, distribution)
+            y <- data$y
+            X <- data$X
+
+            
+            start_time <- Sys.time()
+            
+            # Find optimal lambda
+            cv_fit <- cv.glmnet(X, y, alpha = 1)
+            optimal_lambda <- cv_fit$lambda.min
+            
+            lambdas <- c(lambdas, optimal_lambda)
+            
+            # fit model
+            fit <- glmnet(X, y, alpha = 1, lambda = optimal_lambda)
+            
+            
+            num_nonzero <- sum(coef(fit) != 0)
+            
+            N_nonzero <- c(N_nonzero, num_nonzero)
+            
+            # Calculate true error on test set
+            test_errors <- calculate_test_error(200, p, corr, mu, beta_true, distribution, fit)
+            
+            true_error <- test_errors$true_errors
+            
+            true_errors <- c(true_errors, true_error)
+            
+            
+            # Calculate prediction error on test set
+            pred_error <- test_errors$pred_errors
+            
+            pred_errors <- c(pred_errors, pred_error)
+            
+            
+            # Record simulation time
+            end_time <- Sys.time()
+            runtime <- as.numeric(difftime(end_time, start_time, units = "secs"))
+            
+            runtimes <- c(runtimes, runtime)
+          }
+          
+          result_row <-data.frame(Distribution = distribution, p = p, n = n, corr = corr, True_Error = mean(true_errors), Lambda = mean(lambdas), Pred_Error = mean(pred_errors), N_nonzero = mean(N_nonzero), N_true = N_true, Time = mean(runtimes), stringsAsFactors = FALSE)
+          
+          results <- rbind(results, result_row)
+        }
+      
+  }
+  return(results)
+}
+
+run_simulation()
+
+
+```
+
+
+
+
+
+
+
+
