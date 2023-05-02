@@ -5,7 +5,7 @@
 
 # 1. Introduction
 
-This paper provides an overview of the research paper "Coordinate Descent Algorithms for Lasso Penalized Regression" by Tong Tong Wu and Kenneth Lange.
+This paper is my final project of the course `Advanced Statistical Learning` (course code STA315) at the Univeristy of Toronto and provides an overview of the research paper "Coordinate Descent Algorithms for Lasso Penalized Regression" by Tong Tong Wu and Kenneth Lange.
 
 <br>
 
